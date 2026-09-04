@@ -18,9 +18,21 @@ gem "bootsnap", require: false
 gem "thruster", require: false
 
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
-# gem "rack-cors"
+gem "rack-cors"
+
+# Official Anthropic SDK — the only external service this app talks to.
+gem "anthropic"
+
+# Per-IP throttling. The endpoint is public and every request spends money, so
+# this is load-bearing rather than hardening. See config/initializers/rack_attack.rb.
+gem "rack-attack"
 
 group :development, :test do
+  # Loads backend/.env so ANTHROPIC_API_KEY is available locally. Development
+  # only — in production Railway injects real environment variables and no .env
+  # file is shipped (see .dockerignore).
+  gem "dotenv-rails"
+
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 

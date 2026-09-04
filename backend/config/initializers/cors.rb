@@ -1,16 +1,14 @@
-# Be sure to restart your server when you modify this file.
+# In production the frontend is built into Rails' public/ and served from the
+# same origin, so CORS is not involved. This exists for local development, where
+# Vite serves on another port, and for any explicitly allowed deployed origin.
+Rails.application.config.middleware.insert_before 0, Rack::Cors do
+  allow do
+    origins(*Rails.application.config.x.allowed_origins)
 
-# Avoid CORS issues when API is called from the frontend app.
-# Handle Cross-Origin Resource Sharing (CORS) in order to accept cross-origin Ajax requests.
-
-# Read more: https://github.com/cyu/rack-cors
-
-# Rails.application.config.middleware.insert_before 0, Rack::Cors do
-#   allow do
-#     origins "example.com"
-#
-#     resource "*",
-#       headers: :any,
-#       methods: [:get, :post, :put, :patch, :delete, :options, :head]
-#   end
-# end
+    resource "/api/*",
+      headers: :any,
+      methods: [ :get, :post, :options ],
+      # SSE responses are streamed; the browser needs to read them incrementally.
+      credentials: false
+  end
+end

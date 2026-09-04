@@ -1,10 +1,15 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
+  # Reveal health status on /up that returns 200 if the app boots with no exceptions,
+  # otherwise 500. Railway's healthcheck points here (see railway.json).
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  # Ask a question. Responds as an SSE stream, not JSON.
+  post "api/ask" => "ask#create"
+
+  # Remaining daily capacity and corpus metadata. Costs nothing to call.
+  get "api/status" => "ask#status"
+
+  # Serve the built React app for any non-API path so client-side routing works.
+  get "*path", to: "fallback#index", constraints: ->(req) { !req.path.start_with?("/api", "/up") }
+  root "fallback#index"
 end

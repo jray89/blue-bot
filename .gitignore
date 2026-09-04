@@ -1,0 +1,22 @@
+*.pdf
+
+# Secrets. These patterns have no slash, so they match at ANY depth — an
+# earlier `backend/.env*` did not cover a .env at the repo root.
+.env
+.env.*
+!.env.example
+
+backend/tmp/
+backend/log/
+backend/public/assets/
+backend/public/index.html
+
+frontend/node_modules/
+frontend/dist/
+
+.DS_Store
+
+# Local bundler path (sandbox workaround). Must NOT be committed: a local
+# .bundle/config overrides the BUNDLE_PATH env var the Dockerfile sets.
+backend/.bundle/
+backend/vendor/bundle/

@@ -1,0 +1,108 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/inter";
+@import "@fontsource/eb-garamond/400.css";
+@import "@fontsource/eb-garamond/400-italic.css";
+@import "@fontsource/eb-garamond/600.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  /* The answers are quotations and paraphrase from a printed book, so they are
+     set in a book face rather than the UI face. */
+  --font-serif: "EB Garamond", ui-serif, Georgia, serif;
+}
+
+:root {
+  --background: oklch(0.99 0.003 250);
+  --foreground: oklch(0.22 0.012 255);
+  --muted: oklch(0.96 0.005 250);
+  --muted-foreground: oklch(0.5 0.014 255);
+  --border: oklch(0.9 0.008 252);
+  --card: oklch(1 0 0);
+  --primary: oklch(0.38 0.09 255);
+  --primary-foreground: oklch(0.99 0.003 250);
+  --accent: oklch(0.95 0.02 252);
+  --destructive: oklch(0.55 0.19 27);
+  --warning: oklch(0.62 0.13 75);
+  --ring: oklch(0.38 0.09 255);
+}
+
+.dark {
+  --background: oklch(0.17 0.011 258);
+  --foreground: oklch(0.93 0.006 250);
+  --muted: oklch(0.23 0.013 258);
+  --muted-foreground: oklch(0.66 0.012 255);
+  --border: oklch(0.29 0.014 258);
+  --card: oklch(0.2 0.012 258);
+  --primary: oklch(0.72 0.1 250);
+  --primary-foreground: oklch(0.17 0.011 258);
+  --accent: oklch(0.27 0.02 255);
+  --destructive: oklch(0.66 0.17 25);
+  --warning: oklch(0.75 0.12 78);
+  --ring: oklch(0.72 0.1 250);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-ring: var(--ring);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+  }
+}
+
+/* The cursor that trails the streaming answer. */
+@keyframes caret {
+  0%, 45% { opacity: 1; }
+  55%, 100% { opacity: 0; }
+}
+
+.streaming-caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.5ch;
+  height: 1.05em;
+  margin-left: 0.12em;
+  vertical-align: -0.16em;
+  background-color: var(--primary);
+  animation: caret 1.1s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streaming-caret::after {
+    animation: none;
+    opacity: 0.6;
+  }
+}

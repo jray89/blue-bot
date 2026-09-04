@@ -25,8 +25,21 @@
 # Any libraries that use a connection pool or another resource pool should
 # be configured to provide at least as many connections as the number of
 # threads. This includes Active Record's `pool` parameter in `database.yml`.
-threads_count = ENV.fetch("RAILS_MAX_THREADS", 3)
+#
+# NOTE for this app: answers are streamed with ActionController::Live, and a
+# live stream occupies its thread for the entire time the answer is being
+# generated — several seconds, not milliseconds. Threads are therefore the hard
+# limit on concurrent askers, and the stock 3 would wedge the app (including the
+# /up healthcheck) with three people asking at once. The work is almost entirely
+# waiting on the Anthropic API, so these threads are cheap.
+threads_count = ENV.fetch("RAILS_MAX_THREADS", 12)
 threads threads_count, threads_count
+
+# Deliberately single mode (no workers). SpendGuard's daily counter lives in
+# process memory, so a second worker would mean a second counter and a cap of
+# 2x the intended budget. If you ever add workers, move that counter to a shared
+# store first.
+workers 0
 
 # Specifies the `port` that Puma will listen on to receive requests; default is 3000.
 port ENV.fetch("PORT", 3000)

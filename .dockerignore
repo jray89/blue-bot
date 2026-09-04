@@ -1,0 +1,25 @@
+.git/
+.github/
+.claude/
+
+# Never ship the source PDF — only the extracted text is deployed.
+*.pdf
+
+# Secrets must never enter the image. Railway injects real environment
+# variables at runtime. `**/` so a .env at any depth is caught, not just
+# backend/ — the repo root is the easy one to miss.
+**/.env
+**/.env.*
+
+backend/tmp/
+backend/log/
+backend/public/assets/
+backend/public/index.html
+
+frontend/node_modules/
+frontend/dist/
+
+**/.DS_Store
+**/*.log
+backend/.bundle/
+backend/vendor/bundle/
