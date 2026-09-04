@@ -1,6 +1,6 @@
 # blue-bot
 
-Ask questions of *The Practice of the Free Church of Scotland* — the Blue Book —
+Ask questions of _The Practice of the Free Church of Scotland_ — the Blue Book —
 and get answers cited to the printed page.
 
 Rails API + React frontend, deployed as a single container on Railway.
@@ -82,14 +82,14 @@ variables directly, and `.dockerignore` keeps any local one out of the image.
 
 ## Configuration
 
-| Variable | Default | Notes |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | — | Required. |
-| `SECRET_KEY_BASE` | — | Required in production. |
-| `DAILY_QUESTION_LIMIT` | `16` | Global hard cap. ~$0.04/question → ~$20/month. |
-| `RAILS_MAX_THREADS` | `12` | Bounds concurrent askers; each SSE stream holds a thread. |
-| `ALLOWED_ORIGINS` | localhost dev ports | Comma separated. Not needed in production. |
-| `BLUE_BOOK_DATA_DIR` | auto-detected | Set by the Dockerfile to `/rails/data/blue-book`. |
+| Variable               | Default             | Notes                                                     |
+| ---------------------- | ------------------- | --------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`    | —                   | Required.                                                 |
+| `SECRET_KEY_BASE`      | —                   | Required in production.                                   |
+| `DAILY_QUESTION_LIMIT` | `16`                | Global hard cap. ~$0.04/question → ~$20/month.            |
+| `RAILS_MAX_THREADS`    | `12`                | Bounds concurrent askers; each SSE stream holds a thread. |
+| `ALLOWED_ORIGINS`      | localhost dev ports | Comma separated. Not needed in production.                |
+| `BLUE_BOOK_DATA_DIR`   | auto-detected       | Set by the Dockerfile to `/rails/data/blue-book`.         |
 
 ## Cost controls
 
@@ -140,13 +140,6 @@ cd backend && BUNDLE_FROZEN=true BUNDLE_DEPLOYMENT=1 bundle install
 
 ## Known limitations
 
-- The corpus is the **Eighth Edition (Revised), 1995**. The General Assembly has
-  legislated since, so a procedure described here may have been amended. There
-  is deliberately **no standing notice in the UI**; the caveat is carried by the
-  answering prompt, which is instructed to flag anything turning on a detail
-  likely to have changed and to state that the book "is a guide book and not a
-  constitutional document". If the app is ever shared widely, reconsider whether
-  that is enough on its own.
 - Three official **errata** (pp. 59, 114, 157) ship as their own section of the
   routing table so the model doesn't quote a reference the Church has corrected.
 - Citations are produced as inline `(p. N)` text and **verified server-side**

@@ -53,14 +53,8 @@ class AskController < ApplicationController
       # Out of scope, or the indices had nothing. Nothing was spent on Sonnet,
       # so hand the reservation back rather than charging the day's budget.
       SpendGuard.refund!
-      # Lead with the likelier explanation. Plenty of legitimate polity questions
-      # land here simply because a 1995 book does not treat them — telling that
-      # asker their question wasn't about Free Church practice is both wrong and
-      # unhelpful.
       emit(:no_answer, message: "The Blue Book's indices don't point to anything " \
-                                "covering this. It may be a matter the #{BlueBook::EDITION} " \
-                                "doesn't address — later Acts of Assembly often do — or it " \
-                                "may fall outside Free Church practice and polity altogether.")
+                                "covering this.")
       return
     end
 
