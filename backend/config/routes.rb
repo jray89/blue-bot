@@ -9,6 +9,9 @@ Rails.application.routes.draw do
   # Remaining daily capacity and corpus metadata. Costs nothing to call.
   get "api/status" => "ask#status"
 
+  # Proxy-buffering diagnostic. Free to call; see StreamTestController.
+  get "api/stream_test" => "stream_test#show"
+
   # Serve the built React app for any non-API path so client-side routing works.
   get "*path", to: "fallback#index", constraints: ->(req) { !req.path.start_with?("/api", "/up") }
   root "fallback#index"
