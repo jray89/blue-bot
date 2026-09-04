@@ -90,13 +90,27 @@ class AskController < ApplicationController
     response.stream.close
   end
 
+  # Padding written before anything else, to defeat proxy buffering.
+  #
+  # Measured on Railway: an entire answer (~1.5KB of SSE) arrived in a single
+  # lump at the end, while the identical build streams correctly when run
+  # locally in production mode. X-Accel-Buffering is set and passed through, so
+  # the edge is not honouring it — the response is simply too small to fill the
+  # proxy's buffer, which is only flushed once it fills or the connection ends.
+  #
+  # A colon-prefixed line is an SSE comment: the spec requires clients to ignore
+  # it, and our own parser drops any frame with no `data:` line.
+  STREAM_PRIMER = ": #{'padding' * 1200}\n\n".freeze
+
   def prepare_stream!
     response.headers["Content-Type"] = "text/event-stream"
     response.headers["Cache-Control"] = "no-cache"
-    # Tell nginx-style proxies (Railway's included) not to buffer, or the answer
-    # arrives in one lump at the end and streaming is pointless.
+    # Tell nginx-style proxies not to buffer. Railway does not appear to honour
+    # this, hence STREAM_PRIMER below, but it costs nothing and other proxies do.
     response.headers["X-Accel-Buffering"] = "no"
     response.headers["Last-Modified"] = Time.now.httpdate
+
+    response.stream.write(STREAM_PRIMER)
   end
 
   def emit(event, **payload)
