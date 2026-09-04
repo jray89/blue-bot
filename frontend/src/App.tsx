@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, CornerDownLeft, Loader2, TriangleAlert } from 'lucide-react';
+import { BookOpen, CornerDownLeft, Loader2 } from 'lucide-react';
 import { useAsk } from '@/hooks/useAsk';
 import { AnswerPanel } from '@/components/AnswerPanel';
 import { cn } from '@/lib/utils';
@@ -75,8 +75,6 @@ export default function App() {
           </p>
         </div>
       </header>
-
-      {/* <Disclaimer edition={status?.edition} /> */}
 
       <main className='mx-auto w-full max-w-3xl flex-1 px-5 py-7'>
         <form onSubmit={submit}>
@@ -164,33 +162,6 @@ export default function App() {
           )}
         </div>
       </footer>
-    </div>
-  );
-}
-
-/**
- * Persistent, not dismissible. The corpus is the 1995 edition and the General
- * Assembly has legislated since, so this is the single most important thing on
- * the page after the answer itself.
- */
-function Disclaimer({ edition }: { edition?: string }) {
-  return (
-    <div className='border-b bg-[var(--accent)]'>
-      <div className='mx-auto flex w-full max-w-3xl items-start gap-2.5 px-5 py-2.5'>
-        <TriangleAlert
-          className='mt-px size-4 shrink-0 text-[var(--warning)]'
-          aria-hidden
-        />
-        <p className='text-xs leading-relaxed text-[var(--muted-foreground)]'>
-          Answers come from the{' '}
-          <strong className='font-medium text-[var(--foreground)]'>
-            {edition ?? 'Eighth Edition (Revised), 1995'}
-          </strong>
-          . The Assembly has legislated since, and the book itself is “a guide
-          book and not a constitutional document”. Check anything you intend to
-          act on against the current Acts.
-        </p>
-      </div>
     </div>
   );
 }

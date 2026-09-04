@@ -105,6 +105,27 @@ in this repo; the third is the only real guarantee.
 3. **A spend limit in the Anthropic Console.** ← set this. Neither of the above
    survives a restart loop or an unexpectedly expensive request.
 
+## Gemfile.lock has no CHECKSUMS block — on purpose
+
+Bundler derives checksums from gems it actually downloads. Resolving on macOS
+therefore leaves empty entries for the Linux-only binaries (`nokogiri`,
+`thruster`), and the Docker build runs `BUNDLE_DEPLOYMENT=1`, which refuses to
+proceed with an incomplete CHECKSUMS block:
+
+```
+Your lockfile has an empty CHECKSUMS entry for "nokogiri", but can't be updated
+because frozen mode is set
+```
+
+`bundle lock --add-checksums` does not fix it — it cannot fetch checksums for
+platforms it will never install. The block is removed instead; versions and
+platforms remain pinned. If a future Bundler reintroduces it, strip it again and
+verify with:
+
+```sh
+cd backend && BUNDLE_FROZEN=true BUNDLE_DEPLOYMENT=1 bundle install
+```
+
 ## Deliberate constraints
 
 - **No database.** Single-turn, nothing persisted. The corpus is read-only and
@@ -120,8 +141,12 @@ in this repo; the third is the only real guarantee.
 ## Known limitations
 
 - The corpus is the **Eighth Edition (Revised), 1995**. The General Assembly has
-  legislated since. The UI carries a persistent notice and the system prompt is
-  told to flag anything likely to have been amended.
+  legislated since, so a procedure described here may have been amended. There
+  is deliberately **no standing notice in the UI**; the caveat is carried by the
+  answering prompt, which is instructed to flag anything turning on a detail
+  likely to have changed and to state that the book "is a guide book and not a
+  constitutional document". If the app is ever shared widely, reconsider whether
+  that is enough on its own.
 - Three official **errata** (pp. 59, 114, 157) ship as their own section of the
   routing table so the model doesn't quote a reference the Church has corrected.
 - Citations are produced as inline `(p. N)` text and **verified server-side**
