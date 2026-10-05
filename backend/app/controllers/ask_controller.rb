@@ -10,9 +10,6 @@ class AskController < ApplicationController
 
   MAX_QUESTION_LENGTH = 500
 
-  # Matches the inline citations the answer is asked to produce, e.g. "(p. 94)".
-  CITATION_PATTERN = /\(p\.\s*(\d{1,3})\)/
-
   def create
     question = params[:question].to_s.strip
     return render_error(:bad_request, "Please ask a question.") if question.empty?
@@ -65,7 +62,7 @@ class AskController < ApplicationController
       emit(:token, text: fragment)
     end
 
-    emit(:done, unverified_citations: unverified_citations(answer, routed.pages))
+    emit(:done, unverified_citations: CitationVerifier.unverified(answer, routed.pages))
   rescue ActionController::Live::ClientDisconnected
     # Reader closed the tab. Already charged; nothing useful left to say.
     Rails.logger.info("ask abandoned by client")
@@ -121,17 +118,6 @@ class AskController < ApplicationController
       chapter: BlueBook.chapter(page),
       label: BlueBook.label(page)
     }
-  end
-
-  # The answer is instructed to cite only supplied pages. Verify rather than
-  # trust: any page cited that we did not actually provide is a fabrication, and
-  # the frontend should say so.
-  def unverified_citations(answer, supplied)
-    answer.scan(CITATION_PATTERN)
-          .flatten
-          .map(&:to_i)
-          .uniq
-          .reject { |page| supplied.include?(page) }
   end
 
   def render_error(status, message)

@@ -89,8 +89,7 @@ namespace :ask do
     out_tokens = answer.length / 4
     answer_cost = ((context + 700) * SONNET_IN + out_tokens * SONNET_OUT) / 1_000_000.0
 
-    cited = answer.scan(/\(p\.\s*(\d{1,3})\)/).flatten.map(&:to_i).uniq
-    fabricated = cited - routed.pages
+    fabricated = CitationVerifier.unverified(answer, routed.pages)
     puts "  fabricated citations: #{fabricated.inspect}" unless fabricated.empty?
     puts format("  cost: $%.4f (route $%.4f + answer $%.4f)", route_cost + answer_cost, route_cost, answer_cost)
 
