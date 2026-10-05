@@ -28,13 +28,6 @@ class Rack::Attack
     req.ip if req.post? && req.path == ASK_PATH
   end
 
-  # The buffering diagnostic costs nothing to run but holds a thread for up to
-  # ten seconds, so a handful of concurrent callers could starve Puma. Free to
-  # call, but not free to flood.
-  throttle("stream_test/ip", limit: 3, period: 1.minute) do |req|
-    req.ip if req.path == "/api/stream_test"
-  end
-
   self.throttled_responder = lambda do |request|
     retry_after = (request.env["rack.attack.match_data"] || {})[:period].to_i
 
