@@ -1,0 +1,11 @@
+#!/bin/sh
+# Container entrypoint: make sure the Blue Book corpus is on disk, then hand
+# off to whatever command was asked for (puma by default, see Dockerfile CMD).
+#
+# The corpus is fetched at runtime rather than baked in at build time so the
+# GitHub token stays a runtime secret and never lands in an image layer.
+set -eu
+
+/rails/bin/fetch-corpus
+
+exec "$@"

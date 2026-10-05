@@ -2,8 +2,12 @@
 .github/
 .claude/
 
-# Never ship the source PDF — only the extracted text is deployed.
+# Never ship the book. The PDF is never deployed, and the extracted corpus is
+# fetched at container start from its private repo (bin/fetch-corpus) — a local
+# clone in data/ must not leak into the image.
 *.pdf
+data/
+script/
 
 # Secrets must never enter the image. Railway injects real environment
 # variables at runtime. `**/` so a .env at any depth is caught, not just
