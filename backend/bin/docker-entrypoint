@@ -6,6 +6,9 @@
 # GitHub token stays a runtime secret and never lands in an image layer.
 set -eu
 
-/rails/bin/fetch-corpus
+"$(dirname "$0")/fetch-corpus"
+
+# The app itself never needs the token; don't hand it to the Rails process.
+unset BLUE_BOOK_CORPUS_TOKEN
 
 exec "$@"
