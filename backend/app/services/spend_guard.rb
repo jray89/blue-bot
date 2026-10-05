@@ -65,6 +65,16 @@ class SpendGuard
       end
     end
 
+    # Back to a fresh day with the limit re-read from the environment. Only the
+    # test suite needs this.
+    def reset!
+      @mutex.synchronize do
+        @day = nil
+        @count = 0
+        @daily_limit = nil
+      end
+    end
+
     private
 
     # Callers already hold the mutex.

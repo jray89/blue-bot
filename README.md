@@ -5,6 +5,12 @@ and get answers cited to the printed page.
 
 Rails API + React frontend, deployed as a single container on Railway.
 
+**The book itself is not in this repo.** It is copyrighted by the Free Church
+of Scotland, so its extracted text lives in a separate private repo
+(`jray89/blue-bot-corpus`) and is loaded at boot. Everything here — the code,
+the prompts, the tests — is original work and runs without it: the test suite
+uses a small synthetic corpus about teapots and lighthouses.
+
 ## How it answers
 
 The book is ~254 pages / ~170k tokens. That fits in a single request, but sending
@@ -45,8 +51,8 @@ book, so a citation of "p. 94" can be checked against a physical copy.
 ```
 backend/    Rails 8 API. No database — the corpus loads into memory at boot.
 frontend/   Vite + React + Tailwind 4 + shadcn conventions.
-data/       Extracted corpus, committed. The PDF itself is never committed.
-script/     One-time build tools that produce data/.
+data/       Where a local clone of the private corpus goes. Gitignored.
+script/     One-time build tools that produce the corpus.
 ```
 
 ## Rebuilding the corpus
@@ -65,9 +71,50 @@ manifest, the structured indices, and the routing table. If the page ranges in
 `STRUCTURE` (in `extract_blue_book.py`) don't match the new edition's Contents,
 update them first — they drive the citation labels.
 
+`data/blue-book/` is a checkout of the private corpus repo, so publish a
+rebuild from there: commit, tag (`v2`, …), push, then point
+`BLUE_BOOK_CORPUS_REF` at the new tag.
+
+## The corpus
+
+The corpus repo's root is exactly the corpus directory: `manifest.json`,
+`routing_table.md`, `indices.md` and `pages/p001.md` … `p254.md`. The app reads
+it from `BLUE_BOOK_DATA_DIR`, or, when that is unset, from `data/blue-book/` at
+the repo root.
+
+- **Locally**, clone it into place (needs access to the private repo):
+
+  ```sh
+  git clone git@github.com:jray89/blue-bot-corpus data/blue-book
+  ```
+
+  or fetch a tagged snapshot with a token instead of SSH:
+
+  ```sh
+  BLUE_BOOK_CORPUS_TOKEN=github_pat_… BLUE_BOOK_DATA_DIR=data/blue-book backend/bin/fetch-corpus
+  ```
+
+  Without a corpus, development still boots (with a warning) but cannot answer.
+
+- **In the container**, `bin/docker-entrypoint` runs `bin/fetch-corpus` before
+  Rails starts. If `$BLUE_BOOK_DATA_DIR/manifest.json` already exists it does
+  nothing; otherwise it downloads the `BLUE_BOOK_CORPUS_REF` tarball from the
+  GitHub API using `BLUE_BOOK_CORPUS_TOKEN`, checks it has a manifest, routing
+  table and pages, and moves it into place. Production refuses to boot without
+  a corpus, so a bad token fails the `/up` healthcheck rather than serving
+  broken answers.
+
+  The token is a **runtime** variable only. It is never a build arg (those are
+  recorded in image history), never echoed, and never on a command line. The
+  image contains no book text, and `data/` is excluded from the build context.
+
+The token should be a fine-grained personal access token scoped to the corpus
+repo alone with **Contents: Read-only** — see [Deploying](#deploying).
+
 ## Development
 
 ```sh
+git clone git@github.com:jray89/blue-bot-corpus data/blue-book   # see above
 cp backend/.env.example backend/.env    # then put your real key in it
 cd backend  && bundle install && bin/rails s     # :3000
 cd frontend && pnpm install   && pnpm dev        # :5175, proxies /api to :3000
@@ -80,16 +127,52 @@ reads the Rails app root. Both are gitignored and dockerignored, but only
 In production there is no `.env` file at all: Railway injects the environment
 variables directly, and `.dockerignore` keeps any local one out of the image.
 
+## Tests
+
+```sh
+cd backend  && bin/rails test        # no corpus, API key or network needed
+cd backend  && bin/rubocop && bin/brakeman
+cd frontend && pnpm typecheck && pnpm build
+```
+
+The suite runs against a synthetic fixture corpus in
+`backend/test/fixtures/files/blue-book/` (invented text — none of it is from
+the book), which `test/test_helper.rb` selects via `BLUE_BOOK_DATA_DIR`. Every
+Anthropic client is a fake; constructing a real one in a test raises, so the
+suite can never spend money. It covers corpus loading, page routing, citation
+verification, the daily spend cap, per-IP throttling, and the SSE endpoint end
+to end. CI (`.github/workflows/ci.yml`) runs all of the above on every push
+and pull request.
+
 ## Configuration
 
-| Variable               | Default             | Notes                                                     |
-| ---------------------- | ------------------- | --------------------------------------------------------- |
-| `ANTHROPIC_API_KEY`    | —                   | Required.                                                 |
-| `SECRET_KEY_BASE`      | —                   | Required in production.                                   |
-| `DAILY_QUESTION_LIMIT` | `16`                | Global hard cap. ~$0.04/question → ~$20/month.            |
-| `RAILS_MAX_THREADS`    | `12`                | Bounds concurrent askers; each SSE stream holds a thread. |
-| `ALLOWED_ORIGINS`      | localhost dev ports | Comma separated. Not needed in production.                |
-| `BLUE_BOOK_DATA_DIR`   | auto-detected       | Set by the Dockerfile to `/rails/data/blue-book`.         |
+| Variable                 | Default                  | Notes                                                                  |
+| ------------------------ | ------------------------ | ---------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY`      | —                        | Required.                                                              |
+| `SECRET_KEY_BASE`        | —                        | Required in production. Generate with `bin/rails secret`.              |
+| `BLUE_BOOK_CORPUS_TOKEN` | —                        | Required in production. Read-only token for the private corpus repo.   |
+| `BLUE_BOOK_CORPUS_REF`   | `v1`                     | Tag (or branch/SHA) of the corpus repo to download.                    |
+| `BLUE_BOOK_CORPUS_REPO`  | `jray89/blue-bot-corpus` | Corpus repo, `owner/name`.                                             |
+| `BLUE_BOOK_DATA_DIR`     | `data/blue-book`         | Set by the Dockerfile to `/rails/data/blue-book`. Authoritative if set. |
+| `DAILY_QUESTION_LIMIT`   | `16`                     | Global hard cap. ~$0.04/question → ~$20/month.                         |
+| `RAILS_MAX_THREADS`      | `12`                     | Bounds concurrent askers; each SSE stream holds a thread.              |
+| `ALLOWED_ORIGINS`        | localhost dev ports      | Comma separated. Not needed in production.                             |
+
+The app does not use Rails encrypted credentials; there is no `master.key`.
+
+## Deploying
+
+Railway builds the root `Dockerfile` (see `railway.json`). Set
+`ANTHROPIC_API_KEY`, `SECRET_KEY_BASE` and `BLUE_BOOK_CORPUS_TOKEN` as service
+variables, and `BLUE_BOOK_CORPUS_REF` if you want something other than `v1`.
+
+To create the corpus token: GitHub → Settings → Developer settings → Personal
+access tokens → **Fine-grained tokens** → Generate new token. Resource owner:
+your account; Repository access: **Only select repositories** →
+`blue-bot-corpus`; Repository permissions: **Contents: Read-only** (Metadata:
+Read-only is added automatically); nothing else. Pick an expiry and note it —
+when the token expires the next deploy or restart will fail its healthcheck
+until it is replaced.
 
 ## Cost controls
 
@@ -134,9 +217,10 @@ cd backend && BUNDLE_FROZEN=true BUNDLE_DEPLOYMENT=1 bundle install
   throttle counters are both in-process, so a second worker would mean a second
   set of counters and double the intended cap. Move both to a shared store
   before adding workers.
-- **The repo is private and the PDF is gitignored.** The book is copyrighted by
-  the Free Church of Scotland; the answering prompt is instructed to quote
-  sparingly and paraphrase otherwise.
+- **No book text in this repo.** The book is copyrighted by the Free Church of
+  Scotland: the PDF is gitignored, the extracted corpus lives in a private repo
+  fetched at boot, and the answering prompt is instructed to quote sparingly
+  and paraphrase otherwise.
 
 ## Known limitations
 

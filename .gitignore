@@ -1,10 +1,20 @@
 *.pdf
 
+# The extracted Blue Book corpus. It is copyrighted text, kept in the private
+# jray89/blue-bot-corpus repo; clone it here for local development.
+data/blue-book/
+
 # Secrets. These patterns have no slash, so they match at ANY depth — an
 # earlier `backend/.env*` did not cover a .env at the repo root.
 .env
 .env.*
 !.env.example
+
+# Rails encrypted-credentials keys. This app does not use credentials at all —
+# production reads SECRET_KEY_BASE from the environment — but never let a
+# generated key slip back in.
+backend/config/master.key
+backend/config/credentials/*.key
 
 backend/tmp/
 backend/log/

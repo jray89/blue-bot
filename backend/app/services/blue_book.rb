@@ -4,8 +4,11 @@
 # cheaper and simpler than any storage layer — which is why this app has no
 # database at all. Everything here is read-only after boot.
 #
-# The corpus is produced by the scripts in script/ and committed to the repo;
-# the PDF itself is never shipped or read at runtime.
+# The corpus is produced by the scripts in script/ but, being the text of a
+# copyrighted book, is not committed here. It lives in a private repo
+# (jray89/blue-bot-corpus): developers clone it into data/blue-book, and the
+# container downloads it at start (bin/fetch-corpus). The PDF itself is never
+# shipped or read at runtime.
 class BlueBook
   EDITION = "Eighth Edition (Revised), 1995".freeze
   PAGE_RANGE = (1..254).freeze
@@ -13,15 +16,25 @@ class BlueBook
   class MissingCorpus < StandardError; end
 
   class << self
-    # Resolved once. In development the corpus sits at the repo root next to
-    # backend/; in the container the Dockerfile copies it to /rails/data.
+    # Resolved once. In development the corpus is cloned to the repo root next
+    # to backend/; in the container bin/fetch-corpus puts it in /rails/data; the
+    # test suite points BLUE_BOOK_DATA_DIR at a synthetic fixture.
+    #
+    # An explicit BLUE_BOOK_DATA_DIR is authoritative: if it is set but empty,
+    # that is an error, not a cue to go looking elsewhere — otherwise a failed
+    # download (or a typo in the test setup) could silently pick up a different
+    # corpus.
     def root
       @root ||= begin
-        candidates = [
-          ENV["BLUE_BOOK_DATA_DIR"],
-          Rails.root.join("data", "blue-book").to_s,
-          Rails.root.join("..", "data", "blue-book").to_s
-        ].compact
+        candidates =
+          if ENV["BLUE_BOOK_DATA_DIR"].present?
+            [ ENV["BLUE_BOOK_DATA_DIR"] ]
+          else
+            [
+              Rails.root.join("data", "blue-book").to_s,
+              Rails.root.join("..", "data", "blue-book").to_s
+            ]
+          end
 
         found = candidates.find { |path| File.directory?(path) }
         raise MissingCorpus, "no Blue Book corpus in: #{candidates.join(', ')}" if found.nil?
@@ -70,6 +83,12 @@ class BlueBook
 
     def page_count
       pages.count { |_, text| text.present? }
+    end
+
+    # Forget everything loaded so the next call re-reads from disk. Only the
+    # test suite needs this; nothing changes the corpus at runtime.
+    def reset!
+      @root = @routing_table = @manifest = @pages = nil
     end
 
     private

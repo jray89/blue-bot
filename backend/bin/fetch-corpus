@@ -1,0 +1,96 @@
+#!/bin/sh
+# Fetch the Blue Book corpus from its private repository.
+#
+# The book is copyrighted, so its extracted text is not in this repo. It lives
+# in the private jray89/blue-bot-corpus repo, whose root is exactly the corpus
+# directory (manifest.json, routing_table.md, indices.md, pages/). This script
+# downloads a tagged tarball of it at container start, before Rails boots.
+#
+# Idempotent: if the target already holds a manifest.json (a local clone, a
+# previous run, a mounted volume) it does nothing.
+#
+# Environment:
+#   BLUE_BOOK_DATA_DIR      where the corpus goes   (default /rails/data/blue-book)
+#   BLUE_BOOK_CORPUS_TOKEN  GitHub token with read access to the corpus repo
+#   BLUE_BOOK_CORPUS_REF    tag, branch or SHA to fetch          (default v1)
+#   BLUE_BOOK_CORPUS_REPO   owner/name of the corpus repo
+#                                              (default jray89/blue-bot-corpus)
+#
+# The token is never echoed and never placed on a command line: it reaches curl
+# through a config file on stdin, so it does not show up in `ps` either. Do not
+# add `set -x` to this script.
+set -eu
+
+DATA_DIR="${BLUE_BOOK_DATA_DIR:-/rails/data/blue-book}"
+REF="${BLUE_BOOK_CORPUS_REF:-v1}"
+REPO="${BLUE_BOOK_CORPUS_REPO:-jray89/blue-bot-corpus}"
+
+log() { printf 'fetch-corpus: %s\n' "$*" >&2; }
+die() { log "error: $*"; exit 1; }
+
+if [ -f "$DATA_DIR/manifest.json" ]; then
+  log "corpus already present in $DATA_DIR; skipping download"
+  exit 0
+fi
+
+if [ -z "${BLUE_BOOK_CORPUS_TOKEN:-}" ]; then
+  die "no corpus in $DATA_DIR and BLUE_BOOK_CORPUS_TOKEN is not set.
+  Set BLUE_BOOK_CORPUS_TOKEN to a GitHub token that can read $REPO,
+  or put the corpus at $DATA_DIR (e.g. git clone git@github.com:$REPO $DATA_DIR)."
+fi
+
+for tool in curl tar gzip mktemp; do
+  command -v "$tool" >/dev/null 2>&1 || die "$tool is required but not installed"
+done
+
+# Refuse to clobber something we don't recognise. An empty directory (e.g. a
+# freshly created mount point) is fine and is replaced below.
+if [ -d "$DATA_DIR" ] && [ -n "$(ls -A "$DATA_DIR")" ]; then
+  die "$DATA_DIR exists and is not empty, but has no manifest.json; refusing to overwrite it"
+fi
+
+parent=$(dirname "$DATA_DIR")
+mkdir -p "$parent" || die "cannot create $parent"
+[ -w "$parent" ] || die "$parent is not writable by $(id -un 2>/dev/null || id -u)"
+
+# Stage next to the target so the final move is a same-filesystem rename, and
+# a half-extracted corpus is never left at $DATA_DIR.
+work=$(mktemp -d "$parent/.corpus.XXXXXX")
+trap 'rm -rf "$work"' EXIT INT TERM
+
+url="https://api.github.com/repos/$REPO/tarball/$REF"
+log "downloading $REPO@$REF"
+
+# GitHub answers with a redirect to codeload.github.com carrying a short-lived
+# signed URL; curl drops the Authorization header when following it to another
+# host, which is what we want.
+if ! printf 'header = "Authorization: Bearer %s"\n' "$BLUE_BOOK_CORPUS_TOKEN" |
+  curl --config - \
+    --fail --silent --show-error --location \
+    --proto '=https' --tlsv1.2 \
+    --retry 4 --retry-delay 2 --retry-connrefused \
+    --connect-timeout 10 --max-time 120 \
+    --header 'Accept: application/vnd.github+json' \
+    --header 'X-GitHub-Api-Version: 2022-11-28' \
+    --output "$work/corpus.tar.gz" \
+    "$url"; then
+  die "download of $REPO@$REF failed. A 404 usually means the token cannot see
+  the repo (check its repository access and Contents: read permission) or the
+  ref does not exist; a 401 means the token is invalid or expired."
+fi
+
+mkdir "$work/corpus"
+tar -xzf "$work/corpus.tar.gz" -C "$work/corpus" --strip-components=1 ||
+  die "could not extract the corpus tarball"
+
+[ -f "$work/corpus/manifest.json" ] || die "corpus tarball has no manifest.json at its root"
+[ -f "$work/corpus/routing_table.md" ] || die "corpus tarball has no routing_table.md at its root"
+[ -d "$work/corpus/pages" ] || die "corpus tarball has no pages/ directory"
+
+page_count=$(find "$work/corpus/pages" -name 'p*.md' -type f | wc -l | tr -d ' ')
+[ "$page_count" -gt 0 ] || die "corpus pages/ directory is empty"
+
+if [ -d "$DATA_DIR" ]; then rmdir "$DATA_DIR"; fi
+mv "$work/corpus" "$DATA_DIR"
+
+log "installed $page_count pages from $REPO@$REF into $DATA_DIR"

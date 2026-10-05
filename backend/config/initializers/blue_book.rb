@@ -8,7 +8,8 @@ Rails.application.config.after_initialize do
   Rails.logger.info("Blue Book loaded: #{BlueBook.page_count} pages, #{BlueBook::EDITION}")
 rescue BlueBook::MissingCorpus => e
   message = "Blue Book corpus unavailable: #{e.message}. " \
-            "Run script/extract_blue_book.py and script/build_routing_table.py."
+            "Clone the private corpus repo into data/blue-book, or run bin/fetch-corpus " \
+            "with BLUE_BOOK_CORPUS_TOKEN set (see README)."
 
   # In production this app cannot do its job without the corpus, so refuse to
   # boot and let the healthcheck fail loudly. In development, warn and carry on

@@ -1,0 +1,11 @@
+{
+  "source": "synthetic test fixture (not a real book)",
+  "edition": "Synthetic fixture",
+  "page_count": 4,
+  "pages": {
+    "9": { "page": 9, "chapter": "Chapter I: Fixture Chapter", "section": "Part I: Teapots", "chars": 0 },
+    "10": { "page": 10, "chapter": "Chapter I: Fixture Chapter", "section": "Part I: Teapots", "chars": 0 },
+    "94": { "page": 94, "chapter": "Chapter V: Another Fixture Chapter", "section": "Part III: Lighthouses", "chars": 0 },
+    "149": { "page": 149, "chapter": "Appendix: Fixture Forms", "section": "Form 1: Specimen Teapot Register", "chars": 0 }
+  }
+}
