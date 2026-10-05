@@ -1,5 +1,9 @@
 *.pdf
 
+# The extracted Blue Book corpus. It is copyrighted text, kept in the private
+# jray89/blue-bot-corpus repo; clone it here for local development.
+data/blue-book/
+
 # Secrets. These patterns have no slash, so they match at ANY depth — an
 # earlier `backend/.env*` did not cover a .env at the repo root.
 .env
