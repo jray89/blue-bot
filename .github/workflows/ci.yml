@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, security, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # Tests run against the synthetic fixture corpus (test/test_helper.rb sets
+      # BLUE_BOOK_DATA_DIR); the real corpus and its token are never needed here.
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          working-directory: backend
+          bundler-cache: true
+
+      - name: RuboCop
+        run: bin/rubocop -f github
+
+      - name: Brakeman
+        # bundle exec rather than bin/brakeman: the binstub adds --ensure-latest,
+        # which would fail CI the day a new Brakeman ships rather than on a real
+        # finding.
+        run: bundle exec brakeman --quiet --no-pager --exit-on-warn --exit-on-error
+
+      - name: Bundler audit
+        run: bin/bundler-audit check --update
+
+      - name: Tests
+        run: bin/rails test
+
+  frontend:
+    name: Frontend (typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Build
+        run: pnpm run build
+
+  scripts:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck backend/bin/fetch-corpus backend/bin/docker-entrypoint
