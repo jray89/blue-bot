@@ -6,6 +6,12 @@
 .env.*
 !.env.example
 
+# Rails encrypted-credentials keys. This app does not use credentials at all —
+# production reads SECRET_KEY_BASE from the environment — but never let a
+# generated key slip back in.
+backend/config/master.key
+backend/config/credentials/*.key
+
 backend/tmp/
 backend/log/
 backend/public/assets/
