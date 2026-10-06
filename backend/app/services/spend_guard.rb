@@ -1,8 +1,9 @@
 # Hard ceiling on how many questions the app will answer per day.
 #
-# The endpoint is public and every question costs roughly $0.04 (a Haiku routing
-# call plus a Sonnet answer over ~8 pages). Per-IP throttling alone does not
-# bound spend, because it does not bound the number of IPs. This does.
+# The endpoint is public and every answered question costs an estimated ~$0.033
+# (a Haiku routing call plus a Sonnet answer over ~8 pages). Per-IP throttling
+# alone does not bound spend, because it does not bound the number of IPs. This
+# bounds answered questions.
 #
 # It is deliberately in-process and mutex-guarded rather than cache-backed:
 # Puma runs in single mode here (no workers), so one counter really is global,
@@ -12,14 +13,23 @@
 #   * The counter resets on deploy or restart, so a restart loop could exceed
 #     the daily figure.
 #   * It reasons about request counts, not actual billed tokens.
+#   * It caps answered questions, not spend. When routing returns NONE or a
+#     request fails before answering, AskController refunds the reservation, but
+#     the routing call (~$0.01) was still billed. Those requests are bounded only
+#     by per-IP throttling and the Console limit.
 # The authoritative backstop is the spend limit configured in the Anthropic
 # Console. Set one. This guard is the polite first line, not the guarantee.
 class SpendGuard
-  # Measured over the `bin/rails ask:batch` sample: mean $0.0336 per answered
-  # question (routing $0.0104 + answering $0.016-$0.031, depending on how many
-  # pages the question needs). Out-of-scope questions cost the routing call only.
+  # An ESTIMATE, not a measurement: ~$0.033 per answered question on Sonnet 5
+  # ($2/$10 per MTok) + Haiku 4.5 ($1/$5), routing ~$0.01 of it, the rest
+  # growing with how many pages the question needs. Earlier "measured" figures
+  # priced the answering call from character counts. Replace this with the mean
+  # from a real `bin/rails ask:batch` run, which now prices both calls from the
+  # API's reported usage. 0.034 rounds the estimate up. It only feeds
+  # estimated_spend_today in /status, which therefore also excludes the billed
+  # routing calls of refunded (NONE/failed) requests.
   #
-  # $20/month at that mean is ~19/day; 16 leaves headroom for longer answers.
+  # $20/month at that mean is ~20/day; 16 leaves headroom for longer answers.
   DEFAULT_DAILY_LIMIT = 16
   ESTIMATED_COST_PER_QUESTION = 0.034
 

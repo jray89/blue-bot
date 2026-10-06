@@ -13,10 +13,12 @@ uses a small synthetic corpus about teapots and lighthouses.
 
 ## How it answers
 
-The book is ~254 pages / ~170k tokens. That fits in a single request, but sending
-it every time would cost ~$0.56 a question, and prompt caching doesn't rescue a
-low-traffic public app because the cache is almost never warm. So each question
-takes two calls:
+The book is ~254 pages / ~170k tokens (more like ~220k with Sonnet 5's newer
+tokenizer, which produces ~1.3x as many tokens for the same text). That fits in a
+single request, but sending it every time would cost an estimated ~$0.48 a
+question on Sonnet 5 ($0.36–$0.55 depending on the token count and answer
+length), and prompt caching doesn't rescue a low-traffic public app because the
+cache is almost never warm. So each question takes two calls:
 
 1. **Route** — Haiku 4.5 reads the book's own contents outline and its two
    indices (~7.6k tokens) and picks the handful of printed pages worth reading.
@@ -26,14 +28,19 @@ takes two calls:
    block titled with chapter, section and page number, and streams the answer
    back over SSE.
 
-**Measured at $0.034 a question** over the sample set (`bin/rails ask:batch`),
-against ~$0.95 for the whole book on Sonnet — roughly 28x cheaper. Routing is a
-flat $0.0104; answering adds $0.016–$0.031 depending on how many pages the
+**Estimated at ~$0.033 per answered question**, against ~$0.48 for the whole
+book — roughly 14x cheaper (10–20x across the plausible range). Routing is
+~$0.01 of that; answering is the rest and grows with how many pages the
 question needs. Out-of-scope questions cost the routing call only, because the
 answering model is never invoked.
 
-At $20/month that is ~19 questions a day; `DAILY_QUESTION_LIMIT` defaults to 16
-to leave headroom.
+These are estimates for Sonnet 5 at $2/$10 per million input/output tokens and
+Haiku 4.5 at $1/$5, pending a real `bin/rails ask:batch` run. That task now
+prices both calls from the API's reported `usage`; earlier versions estimated
+the answering call from character counts, so older "measured" figures were not.
+
+At $20/month that is ~20 answered questions a day; `DAILY_QUESTION_LIMIT`
+defaults to 16 to leave headroom.
 
 Inspect routing quality — the thing that drives both answer quality and cost,
 and which is invisible from the UI — with:
@@ -154,7 +161,7 @@ and pull request.
 | `BLUE_BOOK_CORPUS_REF`   | `v1`                     | Tag (or branch/SHA) of the corpus repo to download.                    |
 | `BLUE_BOOK_CORPUS_REPO`  | `jray89/blue-bot-corpus` | Corpus repo, `owner/name`.                                             |
 | `BLUE_BOOK_DATA_DIR`     | `data/blue-book`         | Set by the Dockerfile to `/rails/data/blue-book`. Authoritative if set. |
-| `DAILY_QUESTION_LIMIT`   | `16`                     | Global hard cap. ~$0.04/question → ~$20/month.                         |
+| `DAILY_QUESTION_LIMIT`   | `16`                     | Global cap on answered questions. ~$0.033 each (est.) → ~$16/month.    |
 | `RAILS_MAX_THREADS`      | `12`                     | Bounds concurrent askers; each SSE stream holds a thread.              |
 | `ALLOWED_ORIGINS`        | localhost dev ports      | Comma separated. Not needed in production.                             |
 
@@ -184,7 +191,10 @@ in this repo; the third is the only real guarantee.
    concurrent streams.
 2. **Global daily cap** (`app/services/spend_guard.rb`) — an in-process counter,
    because per-IP limits can't bound the number of IPs. It resets on restart and
-   counts requests rather than billed tokens.
+   counts requests rather than billed tokens. It caps *answered* questions, not
+   spend: when routing returns NONE (out of scope) or a request fails before the
+   answering call, the reservation is refunded to the counter, but the routing
+   call was still billed (~$0.01 each), so those requests are not bounded by it.
 3. **A spend limit in the Anthropic Console.** ← set this. Neither of the above
    survives a restart loop or an unexpectedly expensive request.
 

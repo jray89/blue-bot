@@ -1,10 +1,12 @@
 # First of the two model calls: decide which printed pages to read.
 #
-# Sending the whole book (~170k tokens) on every question would cost ~$0.56 a
-# request on Sonnet, and prompt caching does not rescue us because a public,
-# low-traffic app almost never gets a warm cache. So a cheap model reads the
-# book's own indices — a retrieval map written by people who know the subject —
-# and picks the handful of pages worth loading.
+# Sending the whole book (~170k tokens, ~1.3x that on Sonnet 5's tokenizer) on
+# every question would cost an estimated ~$0.48 a request on Sonnet 5 (range
+# $0.36-$0.55; ~14x a routed question; estimates pending a real ask:batch run),
+# and prompt caching does not rescue us because a public, low-traffic app almost
+# never gets a warm cache. So a cheap model reads the book's own indices — a
+# retrieval map written by people who know the subject — and picks the handful
+# of pages worth loading.
 #
 # The response is deliberately a bare list of integers rather than a structured
 # schema: it is trivially validatable, and every number is checked against the
