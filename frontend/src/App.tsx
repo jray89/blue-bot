@@ -71,7 +71,8 @@ export default function App() {
           </div>
           <p className='mt-1.5 text-sm text-[var(--muted-foreground)]'>
             Questions of polity and practice, answered from{' '}
-            <em>The Practice of the Free Church of Scotland</em>.
+            <em>The Practice of the Free Church of Scotland</em>, commonly known
+            as "The Blue Book".
           </p>
         </div>
       </header>
