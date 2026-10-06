@@ -10,6 +10,15 @@ class Answerer
   MODEL = "claude-sonnet-5".freeze
   MAX_TOKENS = 1500
 
+  # Thinking off, explicitly. On claude-sonnet-5 a request that omits `thinking`
+  # runs adaptive thinking, which is billed as output tokens and counts against
+  # MAX_TOKENS — so it would make both the cost and the length of an answer
+  # unpredictable, and could truncate an answer outright. Sonnet 5 accepts
+  # `disabled` (unlike Sonnet 5.5 / Opus 5.5, where it is a 400 — revisit this if
+  # MODEL changes). The task is read-and-cite from a handful of supplied pages
+  # with no tools, so it does not need the extra reasoning.
+  THINKING = { type: "disabled" }.freeze
+
   SYSTEM = <<~PROMPT.freeze
     You answer questions about the practice and polity of the Free Church of
     Scotland, using only the pages of "The Practice of the Free Church of
@@ -67,6 +76,7 @@ class Answerer
     stream = @client.messages.stream(
       model: MODEL,
       max_tokens: MAX_TOKENS,
+      thinking: THINKING,
       system_: SYSTEM,
       messages: [ { role: "user", content: content_for(question, pages) } ]
     )

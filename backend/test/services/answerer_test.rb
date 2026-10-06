@@ -26,6 +26,7 @@ class AnswererTest < ActiveSupport::TestCase
     assert_equal :stream, kind
     assert_equal Answerer::MODEL, params[:model]
     assert_equal Answerer::MAX_TOKENS, params[:max_tokens]
+    assert_equal({ type: "disabled" }, params[:thinking])
     assert_match BlueBook::EDITION, params[:system_]
 
     content = params[:messages].first[:content]
