@@ -1,4 +1,6 @@
 import { CircleAlert, FileText, TriangleAlert } from "lucide-react";
+import Markdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { AskState } from "@/hooks/useAsk";
 import { cn } from "@/lib/utils";
 
@@ -25,21 +27,16 @@ export function AnswerPanel({ state }: { state: AskState }) {
       {state.sources.length > 0 && <Sources sources={state.sources} />}
 
       {state.answer && (
-        <article className="mt-4 font-serif text-[17px] leading-[1.65] text-[var(--foreground)]">
-          {state.answer.split(/\n{2,}/).map((paragraph, index, all) => (
-            <p
-              key={index}
-              className={cn(
-                index > 0 && "mt-3.5",
-                // Trailing caret only on the final paragraph while streaming.
-                state.status === "streaming" &&
-                  index === all.length - 1 &&
-                  "streaming-caret",
-              )}
-            >
-              {renderEmphasis(paragraph)}
-            </p>
-          ))}
+        <article
+          className={cn(
+            "answer mt-4 font-serif text-[17px] leading-[1.65] text-[var(--foreground)]",
+            // Trailing caret on the final block while streaming (see index.css).
+            state.status === "streaming" && "streaming-caret",
+          )}
+        >
+          <Markdown remarkPlugins={[remarkGfm]} components={components}>
+            {state.answer}
+          </Markdown>
         </article>
       )}
 
@@ -57,25 +54,40 @@ export function AnswerPanel({ state }: { state: AskState }) {
 }
 
 /**
- * The model writes **bold** for the term being defined, which reads well for
- * procedural lists. Render just that — a full markdown parser would be a
- * dependency and an injection surface for very little gain.
- *
- * Splitting on a capturing group keeps the delimiters, so odd indices are the
- * emphasised runs. An unterminated `**` mid-stream simply stays literal until
- * its closing pair arrives.
+ * The model answers in markdown — headings, numbered procedures, bold terms —
+ * so render it as such rather than leaking `##` and `1.` into the prose.
+ * react-markdown builds React elements and ignores raw HTML in the source, so
+ * model output can't inject markup. Unterminated syntax mid-stream stays
+ * literal until its closing half arrives.
  */
-function renderEmphasis(text: string) {
-  return text.split(/\*\*(.+?)\*\*/g).map((part, index) =>
-    index % 2 === 1 ? (
-      <strong key={index} className="font-semibold">
-        {part}
-      </strong>
-    ) : (
-      part
-    ),
-  );
-}
+const components: Components = {
+  h1: ({ node: _, ...props }) => <h3 className="text-lg font-semibold" {...props} />,
+  h2: ({ node: _, ...props }) => <h3 className="text-lg font-semibold" {...props} />,
+  h3: ({ node: _, ...props }) => <h4 className="font-semibold" {...props} />,
+  h4: ({ node: _, ...props }) => <h4 className="font-semibold" {...props} />,
+  strong: ({ node: _, ...props }) => <strong className="font-semibold" {...props} />,
+  ul: ({ node: _, ...props }) => <ul className="list-disc space-y-1.5 pl-6" {...props} />,
+  ol: ({ node: _, ...props }) => <ol className="list-decimal space-y-1.5 pl-6" {...props} />,
+  blockquote: ({ node: _, ...props }) => (
+    <blockquote
+      className="border-l-2 pl-4 italic text-[var(--muted-foreground)]"
+      {...props}
+    />
+  ),
+  table: ({ node: _, ...props }) => (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse text-[15px]" {...props} />
+    </div>
+  ),
+  th: ({ node: _, ...props }) => (
+    <th className="border-b px-2 py-1 text-left font-semibold" {...props} />
+  ),
+  td: ({ node: _, ...props }) => <td className="border-b px-2 py-1 align-top" {...props} />,
+  a: ({ node: _, ...props }) => (
+    <a className="underline underline-offset-2" target="_blank" rel="noreferrer" {...props} />
+  ),
+  hr: () => <hr className="border-[var(--border)]" />,
+};
 
 function Sources({ sources }: { sources: AskState["sources"] }) {
   return (
