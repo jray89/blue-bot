@@ -62,7 +62,7 @@ class AskController < ApplicationController
       emit(:token, text: fragment)
     end
 
-    emit(:done, unverified_citations: CitationVerifier.unverified(answer, routed.pages))
+    emit(:done, unverified_citations: CitationVerifier.unverified(answer.text, routed.pages))
   rescue ActionController::Live::ClientDisconnected
     # Reader closed the tab. Already charged; nothing useful left to say.
     Rails.logger.info("ask abandoned by client")

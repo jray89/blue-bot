@@ -4,6 +4,9 @@
 # and printed page number, so the model has an unambiguous handle to cite. We
 # stream text deltas straight through to the SSE connection.
 #
+# Returns a Result carrying the full text and the call's real token usage, read
+# from the stream's accumulated final message once streaming has finished.
+#
 # Citations are asked for inline as "(p. 94)" and verified afterwards against the
 # pages we actually supplied (see AskController) rather than taken on trust.
 class Answerer
@@ -66,12 +69,14 @@ class Answerer
     give the steps in order. Keep it as short as the question allows.
   PROMPT
 
+  Result = Struct.new(:text, :usage, keyword_init: true)
+
   def initialize(client: Anthropic::Client.new)
     @client = client
   end
 
   # Streams the answer, yielding text fragments as they arrive.
-  # Returns the accumulated text.
+  # Returns a Result with the accumulated text and the billed usage.
   def call(question, pages, &block)
     stream = @client.messages.stream(
       model: MODEL,
@@ -81,12 +86,13 @@ class Answerer
       messages: [ { role: "user", content: content_for(question, pages) } ]
     )
 
-    +"".tap do |answer|
-      stream.text.each do |fragment|
-        answer << fragment
-        block&.call(fragment)
-      end
+    answer = +""
+    stream.text.each do |fragment|
+      answer << fragment
+      block&.call(fragment)
     end
+
+    Result.new(text: answer, usage: stream.accumulated_message.usage)
   end
 
   private

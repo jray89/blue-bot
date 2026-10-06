@@ -25,9 +25,17 @@ require "rails/test_help"
 # spending money.
 module FakeAnthropic
   Block = Struct.new(:type, :text)
-  Usage = Struct.new(:input_tokens, :output_tokens)
+  Usage = Struct.new(:input_tokens, :output_tokens, :cache_creation_input_tokens, :cache_read_input_tokens)
   Response = Struct.new(:content, :usage)
-  Stream = Struct.new(:text)
+  Message = Struct.new(:usage)
+
+  # Mirrors the SDK's MessageStream: #text yields the deltas, and
+  # #accumulated_message is the final message, carrying the billed usage.
+  Stream = Struct.new(:text, :usage) do
+    def accumulated_message = Message.new(usage)
+  end
+
+  ANSWER_USAGE = Usage.new(5000, 200, 0, 0).freeze
 
   # Stands in for Anthropic::Client and its #messages resource.
   #
@@ -57,7 +65,7 @@ module FakeAnthropic
       @calls << [ :stream, params ]
       raise @answer if @answer.is_a?(Exception)
 
-      Stream.new(@answer)
+      Stream.new(@answer, ANSWER_USAGE)
     end
   end
 

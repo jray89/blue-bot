@@ -5,16 +5,26 @@ class AnswererTest < ActiveSupport::TestCase
     client = FakeAnthropic::Client.new(route: "unused", answer: [ "Warm ", "the pot ", "(p. 9)." ])
     seen = []
 
-    answer = Answerer.new(client: client).call("How?", [ 9 ]) { |fragment| seen << fragment }
+    result = Answerer.new(client: client).call("How?", [ 9 ]) { |fragment| seen << fragment }
 
-    assert_equal "Warm the pot (p. 9).", answer
+    assert_equal "Warm the pot (p. 9).", result.text
     assert_equal [ "Warm ", "the pot ", "(p. 9)." ], seen
   end
 
   test "works without a block" do
     client = FakeAnthropic::Client.new(route: "unused", answer: [ "a", "b" ])
 
-    assert_equal "ab", Answerer.new(client: client).call("How?", [ 9 ])
+    assert_equal "ab", Answerer.new(client: client).call("How?", [ 9 ]).text
+  end
+
+  test "returns the real usage from the stream's final message" do
+    client = FakeAnthropic::Client.new(route: "unused", answer: [ "a" ])
+
+    result = Answerer.new(client: client).call("How?", [ 9 ])
+
+    assert_equal FakeAnthropic::ANSWER_USAGE, result.usage
+    assert_equal 5000, result.usage.input_tokens
+    assert_equal 200, result.usage.output_tokens
   end
 
   test "sends each page as a titled document followed by the question" do
@@ -39,6 +49,6 @@ class AnswererTest < ActiveSupport::TestCase
   test "returns an empty string when the model streams nothing" do
     client = FakeAnthropic::Client.new(route: "unused", answer: [])
 
-    assert_equal "", Answerer.new(client: client).call("How?", [ 9 ])
+    assert_equal "", Answerer.new(client: client).call("How?", [ 9 ]).text
   end
 end

@@ -78,7 +78,7 @@ namespace :ask do
     routed.pages.each { |p| puts "  p.#{p}  #{BlueBook.label(p)}" }
 
     context = routed.pages.sum { |p| BlueBook.page(p).length } / 4
-    answer = Answerer.new.call(question, routed.pages) { |f| print f if stream }
+    answer = Answerer.new.call(question, routed.pages) { |f| print f if stream }.text
     puts if stream
 
     unless stream
