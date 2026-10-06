@@ -1,6 +1,26 @@
 require "test_helper"
 
 class AskTest < ActionDispatch::IntegrationTest
+  # Makes the live response stream raise IOError on any write matching
+  # +fail_on+, as it does when the client has gone away mid-answer.
+  module BrokenPipe
+    mattr_accessor :fail_on
+
+    def write(string)
+      raise IOError, "closed stream" if BrokenPipe.fail_on&.match?(string)
+
+      super
+    end
+  end
+  ActionDispatch::Response::Buffer.prepend(BrokenPipe)
+
+  # An error whose backtrace is unavailable, to prove logging tolerates it.
+  class BacktracelessError < StandardError
+    def backtrace = nil
+  end
+
+  teardown { BrokenPipe.fail_on = nil }
+
   # Parse an SSE body into [[event, data], ...], skipping comment frames such
   # as the stream primer.
   def events
@@ -155,6 +175,54 @@ class AskTest < ActionDispatch::IntegrationTest
     get "/api/stream_test"
 
     assert_response :not_found
+  end
+
+  test "a client hanging up mid-answer ends the stream quietly and stays charged" do
+    client = FakeAnthropic::Client.new(route: "9", answer: [ "one ", "two" ])
+    BrokenPipe.fail_on = /^event: token/
+
+    with_anthropic(client) { ask }
+
+    assert_response :success
+    assert event(:sources)
+    assert_nil event(:token)
+    assert_nil event(:error)
+    assert_nil event(:done)
+    assert_equal 1, SpendGuard.status[:asked_today]
+  end
+
+  test "a rate limit while answering is reported but not refunded" do
+    rate_limited = Anthropic::Errors::RateLimitError.new(
+      url: URI("https://api.anthropic.com/v1/messages"), status: 429, headers: {},
+      body: nil, request: nil, response: nil, message: "rate limited"
+    )
+    client = FakeAnthropic::Client.new(route: "9", answer: rate_limited)
+
+    with_anthropic(client) { ask }
+
+    assert event(:sources)
+    assert_match "rate limited", event(:error)["message"]
+    assert_nil event(:done)
+    assert_equal 1, SpendGuard.status[:asked_today]
+  end
+
+  test "a failure while answering is reported but not refunded" do
+    client = FakeAnthropic::Client.new(route: "9", answer: RuntimeError.new("boom"))
+
+    with_anthropic(client) { ask }
+
+    assert event(:sources)
+    assert_match "Something went wrong", event(:error)["message"]
+    assert_equal 1, SpendGuard.status[:asked_today]
+  end
+
+  test "an error without a backtrace is still reported" do
+    client = FakeAnthropic::Client.new(route: BacktracelessError.new("no trace"))
+
+    with_anthropic(client) { ask }
+
+    assert_match "Something went wrong", event(:error)["message"]
+    assert_equal 0, SpendGuard.status[:asked_today]
   end
 
   test "health check is up" do

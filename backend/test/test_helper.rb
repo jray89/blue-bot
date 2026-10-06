@@ -1,5 +1,13 @@
 ENV["RAILS_ENV"] ||= "test"
 
+# Coverage must start before the app loads. Parallel workers each write their
+# own result, merged under a per-process command name.
+require "simplecov"
+SimpleCov.start "rails" do
+  enable_coverage :branch
+  add_filter %w[/bin/ /config/ /test/ /vendor/]
+end
+
 # The real corpus is copyrighted and not in this repo, so the suite runs against
 # a small synthetic one. BlueBook treats an explicit BLUE_BOOK_DATA_DIR as
 # authoritative, so a local clone in data/blue-book can never leak in.
@@ -65,6 +73,12 @@ end
 module ActiveSupport
   class TestCase
     parallelize(workers: :number_of_processors)
+
+    parallelize_setup do |worker|
+      SimpleCov.command_name "#{SimpleCov.command_name}-#{worker}"
+    end
+
+    parallelize_teardown { SimpleCov.result }
 
     setup do
       FakeAnthropic.client = nil

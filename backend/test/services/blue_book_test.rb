@@ -57,4 +57,63 @@ class BlueBookTest < ActiveSupport::TestCase
       end
     end
   end
+
+  # Swap File.directory? for the block so the default-location search can be
+  # exercised regardless of whether a developer has a corpus cloned locally.
+  def with_directories(existing)
+    original = File.method(:directory?)
+    File.define_singleton_method(:directory?) { |path| existing.include?(path.to_s) }
+    yield
+  ensure
+    File.define_singleton_method(:directory?, original)
+  end
+
+  test "without BLUE_BOOK_DATA_DIR, falls back to a corpus cloned at the repo root" do
+    repo_root_corpus = Rails.root.join("..", "data", "blue-book").to_s
+
+    with_env("BLUE_BOOK_DATA_DIR" => "") do
+      with_directories([ repo_root_corpus ]) do
+        BlueBook.reset!
+        assert_equal Pathname.new(repo_root_corpus).cleanpath, BlueBook.root
+      end
+    end
+  end
+
+  test "without BLUE_BOOK_DATA_DIR, prefers backend/data over the repo root" do
+    backend_corpus = Rails.root.join("data", "blue-book").to_s
+    repo_root_corpus = Rails.root.join("..", "data", "blue-book").to_s
+
+    with_env("BLUE_BOOK_DATA_DIR" => nil) do
+      with_directories([ backend_corpus, repo_root_corpus ]) do
+        BlueBook.reset!
+        assert_equal Pathname.new(backend_corpus).cleanpath, BlueBook.root
+      end
+    end
+  end
+
+  test "without BLUE_BOOK_DATA_DIR and no local clone, names both places it looked" do
+    with_env("BLUE_BOOK_DATA_DIR" => nil) do
+      with_directories([]) do
+        BlueBook.reset!
+        error = assert_raises(BlueBook::MissingCorpus) { BlueBook.root }
+        assert_match Rails.root.join("data", "blue-book").to_s, error.message
+        assert_match Rails.root.join("..", "data", "blue-book").to_s, error.message
+      end
+    end
+  end
+
+  test "treats a whitespace-only page file as blank" do
+    Dir.mktmpdir do |dir|
+      FileUtils.mkdir_p(File.join(dir, "pages"))
+      File.write(File.join(dir, "pages", "p009.md"), "  \n\n ")
+      File.write(File.join(dir, "pages", "p010.md"), "Real text\n")
+
+      with_env("BLUE_BOOK_DATA_DIR" => dir) do
+        BlueBook.reset!
+        assert_nil BlueBook.page(9)
+        assert_equal "Real text", BlueBook.page(10)
+        assert_equal 1, BlueBook.page_count
+      end
+    end
+  end
 end

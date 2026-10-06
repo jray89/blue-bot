@@ -30,3 +30,7 @@ frontend/dist/
 # .bundle/config overrides the BUNDLE_PATH env var the Dockerfile sets.
 backend/.bundle/
 backend/vendor/bundle/
+
+# Test coverage reports
+backend/coverage/
+frontend/coverage/
