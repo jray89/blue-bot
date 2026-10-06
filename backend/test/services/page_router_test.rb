@@ -39,4 +39,19 @@ class PageRouterTest < ActiveSupport::TestCase
 
     assert_equal [ 9, 149 ], result.pages
   end
+
+  test "reads only text blocks, ignoring other content such as thinking" do
+    response = FakeAnthropic::Response.new(
+      [ FakeAnthropic::Block.new(:thinking, "maybe 94?"), FakeAnthropic::Block.new(:text, "9") ],
+      FakeAnthropic::Usage.new(1000, 10)
+    )
+    client = Object.new
+    client.define_singleton_method(:messages) { self }
+    client.define_singleton_method(:create) { |**| response }
+
+    result = PageRouter.new(client: client).call("How are teapots kept?")
+
+    assert_equal [ 9 ], result.pages
+    assert_equal response.usage, result.usage
+  end
 end
