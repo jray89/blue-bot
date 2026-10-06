@@ -89,7 +89,16 @@
   55%, 100% { opacity: 0; }
 }
 
-.streaming-caret::after {
+/* Vertical rhythm between markdown blocks in an answer. */
+.answer > * + *,
+.answer li > * + * {
+  margin-top: 0.875rem;
+}
+
+/* The caret sits after the last inline content: the final block, or the
+   final item when the answer ends in a list. */
+.streaming-caret > :last-child:not(ul, ol, table, div)::after,
+.streaming-caret > :is(ul, ol):last-child > li:last-child::after {
   content: "";
   display: inline-block;
   width: 0.5ch;
@@ -101,7 +110,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .streaming-caret::after {
+  .streaming-caret > :last-child:not(ul, ol, table, div)::after,
+  .streaming-caret > :is(ul, ol):last-child > li:last-child::after {
     animation: none;
     opacity: 0.6;
   }
