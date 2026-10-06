@@ -59,26 +59,42 @@ namespace :ask do
     puts "=" * 78
   end
 
-  # Pricing per 1M tokens, for the models in PageRouter/Answerer.
-  HAIKU_IN, HAIKU_OUT = 1.0, 5.0
-  SONNET_IN, SONNET_OUT = 3.0, 15.0
+  # USD per 1M tokens, for the models in PageRouter and Answerer (Anthropic
+  # first-party rates; source: claude-api skill model table, cached 2026-09-25).
+  HAIKU_IN, HAIKU_OUT = 1.0, 5.0     # claude-haiku-4-5
+  SONNET_IN, SONNET_OUT = 2.0, 10.0  # claude-sonnet-5
+  # Prompt-cache multipliers on the input rate (5-minute writes, reads). Neither
+  # call sets cache_control today, so these should be zero; priced in case.
+  CACHE_WRITE, CACHE_READ = 1.25, 0.1
+
+  # Every figure here comes from the API's own `usage`, never from text length.
+  def input_tokens(usage)
+    usage.input_tokens + usage.cache_creation_input_tokens.to_i + usage.cache_read_input_tokens.to_i
+  end
+
+  def cost(usage, input_rate, output_rate)
+    (usage.input_tokens * input_rate +
+      usage.cache_creation_input_tokens.to_i * input_rate * CACHE_WRITE +
+      usage.cache_read_input_tokens.to_i * input_rate * CACHE_READ +
+      usage.output_tokens * output_rate) / 1_000_000.0
+  end
 
   def trace(question, stream:)
     puts "\n#{'=' * 78}\nQ: #{question}\n#{'-' * 78}"
 
     routed = PageRouter.new.call(question)
-    route_cost = (routed.usage.input_tokens * HAIKU_IN + routed.usage.output_tokens * HAIKU_OUT) / 1_000_000.0
+    route_cost = cost(routed.usage, HAIKU_IN, HAIKU_OUT)
 
     if routed.none?
       puts "ROUTED: NONE (out of scope — answering model never called)"
       puts format("cost: $%.4f (routing only)", route_cost)
-      return { question: question, pages: [], tokens: routed.usage.input_tokens, cost: route_cost, fabricated: [] }
+      return { question: question, pages: [], tokens: input_tokens(routed.usage), cost: route_cost, fabricated: [] }
     end
 
     routed.pages.each { |p| puts "  p.#{p}  #{BlueBook.label(p)}" }
 
-    context = routed.pages.sum { |p| BlueBook.page(p).length } / 4
-    answer = Answerer.new.call(question, routed.pages) { |f| print f if stream }.text
+    result = Answerer.new.call(question, routed.pages) { |f| print f if stream }
+    answer = result.text
     puts if stream
 
     unless stream
@@ -86,8 +102,7 @@ namespace :ask do
       puts "  -> #{first[0, 160]}#{'...' if first.length > 160}"
     end
 
-    out_tokens = answer.length / 4
-    answer_cost = ((context + 700) * SONNET_IN + out_tokens * SONNET_OUT) / 1_000_000.0
+    answer_cost = cost(result.usage, SONNET_IN, SONNET_OUT)
 
     fabricated = CitationVerifier.unverified(answer, routed.pages)
     puts "  fabricated citations: #{fabricated.inspect}" unless fabricated.empty?
@@ -96,7 +111,7 @@ namespace :ask do
     {
       question: question,
       pages: routed.pages,
-      tokens: routed.usage.input_tokens + context,
+      tokens: input_tokens(routed.usage) + input_tokens(result.usage),
       cost: route_cost + answer_cost,
       fabricated: fabricated
     }
