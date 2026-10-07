@@ -98,19 +98,27 @@ describe("App", () => {
       await screen.findByText(/pages indexed/);
     });
 
-    it("submits on Cmd+Enter and Ctrl+Enter, but not on a bare Enter", async () => {
+    it("submits on Enter, including Cmd+Enter and Ctrl+Enter", async () => {
       render(<App />);
       type("What is a Presbytery?");
 
-      fireEvent.keyDown(textarea(), { key: "Enter" });
-      expect(ask).not.toHaveBeenCalled();
-
+      expect(fireEvent.keyDown(textarea(), { key: "Enter" })).toBe(false); // default prevented: no newline
       fireEvent.keyDown(textarea(), { key: "Enter", metaKey: true });
       fireEvent.keyDown(textarea(), { key: "Enter", ctrlKey: true });
-      expect(ask).toHaveBeenCalledTimes(2);
+      expect(ask).toHaveBeenCalledTimes(3);
+      expect(ask).toHaveBeenCalledWith("What is a Presbytery?");
 
       fireEvent.keyDown(textarea(), { key: "a", metaKey: true });
-      expect(ask).toHaveBeenCalledTimes(2);
+      expect(ask).toHaveBeenCalledTimes(3);
+      await screen.findByText(/pages indexed/);
+    });
+
+    it("inserts a newline on Shift+Enter instead of submitting", async () => {
+      render(<App />);
+      type("What is a Presbytery?");
+
+      expect(fireEvent.keyDown(textarea(), { key: "Enter", shiftKey: true })).toBe(true);
+      expect(ask).not.toHaveBeenCalled();
       await screen.findByText(/pages indexed/);
     });
 
