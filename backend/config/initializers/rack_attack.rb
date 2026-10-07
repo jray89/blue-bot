@@ -14,6 +14,9 @@ class Rack::Attack
   # healthchecks and the frontend's capacity display keep working.
   ASK_PATH = "/api/ask".freeze
 
+  # Published by /api/status so the footer states the same limits enforced here.
+  PER_VISITOR_LIMITS = { per_hour: 5, per_day: 15 }.freeze
+
   # The visitor's address. req.ip is no good on Railway: REMOTE_ADDR is an
   # internal 100.64.x.x hop that changes on every request, and Rack does not
   # treat that range as a proxy, so it never looks at the forwarded headers.
@@ -27,11 +30,14 @@ class Rack::Attack
     req.post? && req.path == ASK_PATH
   end
 
-  throttle("ask/ip/hour", limit: 5, period: 1.hour) do |req|
+  # Rack::Attack reports the first exceeded throttle in definition order, so
+  # longest window first: someone over both the hourly and daily limits should
+  # be told about the daily one, which is the one actually keeping them out.
+  throttle("ask/ip/day", limit: PER_VISITOR_LIMITS[:per_day], period: 1.day) do |req|
     client_ip(req) if ask?(req)
   end
 
-  throttle("ask/ip/day", limit: 15, period: 1.day) do |req|
+  throttle("ask/ip/hour", limit: PER_VISITOR_LIMITS[:per_hour], period: 1.hour) do |req|
     client_ip(req) if ask?(req)
   end
 
@@ -41,13 +47,41 @@ class Rack::Attack
     client_ip(req) if ask?(req)
   end
 
+  # What each throttle is called when telling the visitor which one they hit.
+  LIMIT_DESCRIPTIONS = {
+    "ask/ip/burst" => "You're asking too quickly: the limit is %<limit>d questions every 20 seconds.",
+    "ask/ip/hour" => "You've used all %<limit>d of your questions for this hour.",
+    "ask/ip/day" => "You've used all %<limit>d of your questions for today."
+  }.freeze
+
+  # Throttle windows are fixed, not sliding: they reset on multiples of the
+  # period, so the wait is whatever is left of the current window.
+  def self.seconds_until_reset(match_data)
+    period = match_data[:period].to_i
+    period - (match_data[:epoch_time].to_i % period)
+  end
+
+  def self.describe_wait(seconds)
+    if seconds < 60
+      "#{seconds} #{'second'.pluralize(seconds)}"
+    elsif seconds < 1.hour
+      minutes = (seconds / 60.0).ceil
+      "#{minutes} #{'minute'.pluralize(minutes)}"
+    else
+      hours = (seconds / 3600.0).ceil
+      "about #{hours} #{'hour'.pluralize(hours)}"
+    end
+  end
+
   self.throttled_responder = lambda do |request|
-    retry_after = (request.env["rack.attack.match_data"] || {})[:period].to_i
+    match_data = request.env["rack.attack.match_data"]
+    retry_after = seconds_until_reset(match_data)
+    description = format(LIMIT_DESCRIPTIONS.fetch(request.env["rack.attack.matched"]), limit: match_data[:limit])
 
     [
       429,
       { "Content-Type" => "application/json", "Retry-After" => retry_after.to_s },
-      [ { error: "You've reached the question limit for now. Please try again later." }.to_json ]
+      [ { error: "#{description} You can ask again in #{describe_wait(retry_after)}." }.to_json ]
     ]
   end
 end

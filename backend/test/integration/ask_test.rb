@@ -21,8 +21,7 @@ class AskTest < ActionDispatch::IntegrationTest
 
   teardown { BrokenPipe.fail_on = nil }
 
-  # Parse an SSE body into [[event, data], ...], skipping comment frames such
-  # as the stream primer.
+  # Parse an SSE body into [[event, data], ...], skipping any comment frames.
   def events
     response.body.split("\n\n").filter_map do |frame|
       event = frame[/^event: (.+)$/, 1]
@@ -154,11 +153,54 @@ class AskTest < ActionDispatch::IntegrationTest
 
     assert_response :too_many_requests
     assert_predicate response.headers["Retry-After"].to_i, :positive?
-    assert_match "question limit", response.parsed_body["error"]
+    assert_match(/asking too quickly.*2 questions every 20 seconds.*in \d+ seconds?\./,
+                 response.parsed_body["error"])
 
     # A different visitor is unaffected.
     with_anthropic(FakeAnthropic::Client.new(route: "NONE")) { ask(ip: "203.0.113.31") }
     assert_response :success
+  end
+
+  # Throttle windows are fixed, so tests start at a window boundary and space
+  # questions 25 seconds apart to stay clear of the 20-second burst guard.
+  def ask_spaced(times, ip:)
+    times.times do
+      ask(ip: ip)
+      assert_response :success
+      travel 25.seconds
+    end
+  end
+
+  test "names the hourly limit and when it resets" do
+    travel_to Time.utc(2026, 1, 1, 9) do
+      with_anthropic(FakeAnthropic::Client.new(route: "NONE")) do
+        ask_spaced(5, ip: "203.0.113.50")
+        ask(ip: "203.0.113.50")
+      end
+
+      assert_response :too_many_requests
+      # 125 seconds into the hour.
+      assert_equal "3475", response.headers["Retry-After"]
+      assert_equal "You've used all 5 of your questions for this hour. You can ask again in 58 minutes.",
+                   response.parsed_body["error"]
+    end
+  end
+
+  test "names the daily limit, not the hourly one, once both are used up" do
+    travel_to Time.utc(2026, 1, 1) do
+      with_anthropic(FakeAnthropic::Client.new(route: "NONE")) do
+        3.times do
+          ask_spaced(5, ip: "203.0.113.60")
+          travel_to Time.now.utc.beginning_of_hour + 1.hour
+        end
+
+        ask(ip: "203.0.113.60")
+      end
+
+      assert_response :too_many_requests
+      assert_equal "You've used all 15 of your questions for today. You can ask again in about 21 hours.",
+                   response.parsed_body["error"]
+    end
   end
 
   test "throttles by X-Real-IP when each request arrives from a different proxy hop" do
@@ -186,6 +228,7 @@ class AskTest < ActionDispatch::IntegrationTest
     assert_equal 4, body["pages"]
     assert_equal BlueBook::EDITION, body["edition"]
     assert_equal 0, body["asked_today"]
+    assert_equal({ "per_hour" => 5, "per_day" => 15 }, body["per_visitor"])
   end
 
   test "the diagnostic stream_test endpoint is gone" do

@@ -34,7 +34,8 @@ class AskController < ApplicationController
   def status
     render json: SpendGuard.status.merge(
       edition: BlueBook::EDITION,
-      pages: BlueBook.page_count
+      pages: BlueBook.page_count,
+      per_visitor: Rack::Attack::PER_VISITOR_LIMITS
     )
   end
 

@@ -11,6 +11,7 @@ type Status = {
   daily_limit: number;
   edition: string;
   pages: number;
+  per_visitor: { per_hour: number; per_day: number };
 };
 
 const EXAMPLES = [
@@ -156,11 +157,11 @@ export default function App() {
           {status ? (
             <>
               {status.pages} pages indexed · {status.remaining} of{' '}
-              {status.daily_limit} questions left today
+              {status.daily_limit} questions left today · limit{' '}
+              {status.per_visitor.per_hour} per hour,{' '}
+              {status.per_visitor.per_day} per day per visitor
             </>
-          ) : (
-            <>Not a substitute for the current authorised text.</>
-          )}
+          ) : null}
         </div>
       </footer>
     </div>

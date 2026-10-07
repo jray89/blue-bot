@@ -29,7 +29,13 @@ function statusResponse(body: unknown, ok = true) {
   return Promise.resolve({ ok, json: () => Promise.resolve(body) });
 }
 
-const STATUS = { remaining: 42, daily_limit: 50, edition: "2024", pages: 312 };
+const STATUS = {
+  remaining: 42,
+  daily_limit: 50,
+  edition: "2024",
+  pages: 312,
+  per_visitor: { per_hour: 3, per_day: 9 },
+};
 
 function textarea() {
   return screen.getByLabelText("Your question") as HTMLTextAreaElement;
@@ -205,7 +211,9 @@ describe("App", () => {
       expect(screen.getByText("Not a substitute for the current authorised text.")).toBeTruthy();
       expect(
         (await screen.findByText(/pages indexed/)).textContent,
-      ).toBe("312 pages indexed · 42 of 50 questions left today");
+      ).toBe(
+        "312 pages indexed · 42 of 50 questions left today · limit 3 per hour, 9 per day per visitor",
+      );
       expect(fetchMock).toHaveBeenCalledExactlyOnceWith("/api/status");
     });
 
