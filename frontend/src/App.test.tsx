@@ -45,6 +45,10 @@ function submitButton() {
   return screen.getByRole("button", { name: /ask|finding pages|answering/i }) as HTMLButtonElement;
 }
 
+function footer() {
+  return screen.getByRole("contentinfo");
+}
+
 function type(value: string) {
   fireEvent.change(textarea(), { target: { value } });
 }
@@ -205,10 +209,10 @@ describe("App", () => {
   });
 
   describe("status footer", () => {
-    it("shows the disclaimer until status loads, then the remaining capacity", async () => {
+    it("stays empty until status loads, then shows the remaining capacity", async () => {
       render(<App />);
 
-      expect(screen.getByText("Not a substitute for the current authorised text.")).toBeTruthy();
+      expect(footer().textContent).toBe("");
       expect(
         (await screen.findByText(/pages indexed/)).textContent,
       ).toBe(
@@ -217,23 +221,22 @@ describe("App", () => {
       expect(fetchMock).toHaveBeenCalledExactlyOnceWith("/api/status");
     });
 
-    it("keeps the disclaimer when the status endpoint returns an error", async () => {
+    it("stays empty when the status endpoint returns an error", async () => {
       fetchMock.mockImplementation(() => statusResponse({ error: "nope" }, false));
       render(<App />);
 
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());
       await act(async () => {});
-      expect(screen.getByText("Not a substitute for the current authorised text.")).toBeTruthy();
-      expect(screen.queryByText(/pages indexed/)).toBeNull();
+      expect(footer().textContent).toBe("");
     });
 
-    it("keeps the disclaimer when the status request fails", async () => {
+    it("stays empty when the status request fails", async () => {
       fetchMock.mockImplementation(() => Promise.reject(new Error("offline")));
       render(<App />);
 
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());
       await act(async () => {});
-      expect(screen.getByText("Not a substitute for the current authorised text.")).toBeTruthy();
+      expect(footer().textContent).toBe("");
     });
 
     it("refreshes after every finished question, not just the first", async () => {
