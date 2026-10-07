@@ -15,7 +15,17 @@ class Rack::Attack
   ASK_PATH = "/api/ask".freeze
 
   throttle("ask/ip/hour", limit: 5, period: 1.hour) do |req|
-    req.ip if req.post? && req.path == ASK_PATH
+    if req.post? && req.path == ASK_PATH
+      # TEMPORARY: per-IP throttles are not firing on Railway. Log what the
+      # app sees as the client address so the right header can be chosen.
+      Rails.logger.info(
+        "rack_attack ip=#{req.ip} " \
+        "remote_addr=#{req.get_header('REMOTE_ADDR')} " \
+        "xff=#{req.get_header('HTTP_X_FORWARDED_FOR').inspect} " \
+        "x_real_ip=#{req.get_header('HTTP_X_REAL_IP').inspect}"
+      )
+      req.ip
+    end
   end
 
   throttle("ask/ip/day", limit: 15, period: 1.day) do |req|
