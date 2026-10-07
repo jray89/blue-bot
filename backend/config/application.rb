@@ -65,9 +65,8 @@ module Backend
     # are content-addressed, so caching them is safe either way.
     config.public_file_server.index_name = "__spa_shell_is_served_by_rails"
 
-    # Streaming responses must not be buffered or transformed on the way out.
-    # Rack::ETag buffers the whole body to hash it, which would defeat SSE
-    # entirely; the deflater would hold it for compression.
+    # Streaming responses must not be buffered on the way out. Rack::ETag
+    # buffers the whole body to hash it, which would defeat SSE entirely.
     config.middleware.delete Rack::ETag
     config.middleware.delete Rack::ConditionalGet
   end
