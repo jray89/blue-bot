@@ -161,6 +161,23 @@ class AskTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "throttles by X-Real-IP when each request arrives from a different proxy hop" do
+    # On Railway, REMOTE_ADDR is an internal 100.64.x.x address that changes per
+    # request; the edge sets X-Real-IP to the actual client.
+    send_ask = lambda do |hop|
+      post "/api/ask", params: { question: "How are teapots kept?" }, as: :json,
+        env: { "REMOTE_ADDR" => "100.64.0.#{hop}", "HTTP_X_REAL_IP" => "203.0.113.40" }
+    end
+
+    with_anthropic(FakeAnthropic::Client.new(route: "NONE")) do
+      send_ask.call(1)
+      send_ask.call(2)
+      send_ask.call(3)
+    end
+
+    assert_response :too_many_requests
+  end
+
   test "status reports capacity and corpus size without spending" do
     get "/api/status"
 

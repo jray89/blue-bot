@@ -14,28 +14,31 @@ class Rack::Attack
   # healthchecks and the frontend's capacity display keep working.
   ASK_PATH = "/api/ask".freeze
 
+  # The visitor's address. req.ip is no good on Railway: REMOTE_ADDR is an
+  # internal 100.64.x.x hop that changes on every request, and Rack does not
+  # treat that range as a proxy, so it never looks at the forwarded headers.
+  # Railway's edge sets X-Real-IP to the real client and overwrites any value
+  # the client sends, so it is safe to key on. Fall back to req.ip elsewhere.
+  def self.client_ip(req)
+    req.get_header("HTTP_X_REAL_IP").presence || req.ip
+  end
+
+  def self.ask?(req)
+    req.post? && req.path == ASK_PATH
+  end
+
   throttle("ask/ip/hour", limit: 5, period: 1.hour) do |req|
-    if req.post? && req.path == ASK_PATH
-      # TEMPORARY: per-IP throttles are not firing on Railway. Log what the
-      # app sees as the client address so the right header can be chosen.
-      Rails.logger.info(
-        "rack_attack ip=#{req.ip} " \
-        "remote_addr=#{req.get_header('REMOTE_ADDR')} " \
-        "xff=#{req.get_header('HTTP_X_FORWARDED_FOR').inspect} " \
-        "x_real_ip=#{req.get_header('HTTP_X_REAL_IP').inspect}"
-      )
-      req.ip
-    end
+    client_ip(req) if ask?(req)
   end
 
   throttle("ask/ip/day", limit: 15, period: 1.day) do |req|
-    req.ip if req.post? && req.path == ASK_PATH
+    client_ip(req) if ask?(req)
   end
 
   # A burst guard so one client cannot open many concurrent SSE streams and pin
   # every Puma thread — each stream holds one for its whole life.
   throttle("ask/ip/burst", limit: 2, period: 20.seconds) do |req|
-    req.ip if req.post? && req.path == ASK_PATH
+    client_ip(req) if ask?(req)
   end
 
   self.throttled_responder = lambda do |request|
