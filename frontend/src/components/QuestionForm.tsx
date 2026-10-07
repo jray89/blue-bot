@@ -43,7 +43,10 @@ export function QuestionForm({
           placeholder='e.g. What is the procedure for moderating in a call?'
           onChange={(e) => onQuestionChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) onSubmit();
+            // Enter asks; Shift+Enter keeps its newline.
+            if (e.key !== 'Enter' || e.shiftKey) return;
+            e.preventDefault();
+            onSubmit();
           }}
           className='w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-60'
         />
